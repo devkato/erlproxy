@@ -1,11 +1,27 @@
-{application, erlproxy,
- [
-  {description, ""},
+{application, erlproxy, [
+  {description, "Simple L4 Load Balancer"},
+
   {vsn, "1"},
-  {registered, []},
+
+  {modules, [
+    erlproxy_app,
+    erlproxy_sup,
+    erlproxy_connection,
+    erlproxy_monitor
+  ]},
+
+  {registered, [
+    erlproxy,
+    erlproxy_sup,
+    erlproxy_monitor
+  ]},
+
   {applications, [
-                  kernel,
-                  stdlib
-                 ]},
-  {mod, { erlproxy_app, []}}
- ]}.
+    kernel,
+    stdlib
+  ]},
+
+  {mod, { erlproxy_app, []}},
+
+  {env, []}
+]}.
