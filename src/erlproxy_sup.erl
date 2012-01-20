@@ -43,6 +43,7 @@ init([]) ->
     {reuseaddr, true},
     %{nodelay, true},
     {backlog, 4096},
+    {keepalive, true},
     %{recbuf, default},
     {active, false}
   ],
