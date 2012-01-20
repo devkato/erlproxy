@@ -26,7 +26,7 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, { backends = [] }).
+-record(state, { backends = [], policy }).
 
 -export([select_host/0]).
 
@@ -64,8 +64,10 @@ start_link() ->
 init([]) ->
   {ok, InitOptions} = application:get_env(erlproxy, server_info),
   Backends = proplists:get_value(servers, InitOptions),
+  BackendsOpts = proplists:get_value(backends, InitOptions),
+  Policy = proplists:get_value(policy, BackendsOpts),
   %?APP_DEBUG("Backends -> ~p~n", [Backends]),
-  {ok, #state{ backends = Backends }}.
+  {ok, #state{ backends = Backends, policy = Policy }}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -84,8 +86,14 @@ init([]) ->
 
 % @TODO ホスト選択ロジックの実装
 handle_call(select_host, _From, State) ->
-  SelectedHost = lists:nth(random:uniform(length(State#state.backends)), State#state.backends),
-  %?APP_DEBUG("selected_host -> ~p~n", [SelectedHost]),
+  ?APP_DEBUG("State#state.policy -> ~p~n", [State#state.policy]),
+
+  SelectedHost = case State#state.policy of
+    random ->
+      lists:nth(random:uniform(length(State#state.backends)), State#state.backends);
+    _ ->
+      ?APP_ERROR("unknown policy", [])
+  end,
 
   Reply = {ok, SelectedHost},
 

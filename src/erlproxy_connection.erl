@@ -86,10 +86,17 @@ connect_to_remote(RecvSocket) ->
 
   RemoteHost = proplists:get_value(host, SelectedHost),
   RemotePort = proplists:get_value(port, SelectedHost),
+  RemoteTimeout = case proplists:get_value(timeout, SelectedHost) of
+    undefined ->
+      10000;
+    Timeout ->
+      Timeout
+  end,
+
+  ?APP_INFO("RemoteTimeout -> ~p~n", [RemoteTimeout]),
 
   inet:setopts(RecvSocket,[{active, true}]),
-  %case gen_tcp:connect(RemoteHost, RemotePort, [binary, {active, true}, {packet, 0}, {nodelay, true} ]) of
-  case gen_tcp:connect(RemoteHost, RemotePort, [binary, {active, true}, {packet, 0} ]) of
+  case gen_tcp:connect(RemoteHost, RemotePort, [binary, {active, true}, {packet, 0} ], RemoteTimeout) of
     {ok, ProxySock} ->
       send_receive_data(RecvSocket, ProxySock);
     {error, Reason} ->

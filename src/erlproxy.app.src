@@ -1,7 +1,7 @@
 {application, erlproxy, [
   {description, "Simple L4 Load Balancer"},
 
-  {vsn, "1"},
+  {vsn, "0.0.1"},
 
   {modules, [
     erlproxy_app,
@@ -16,10 +16,7 @@
     erlproxy_monitor
   ]},
 
-  {applications, [
-    kernel,
-    stdlib
-  ]},
+  {applications, [ kernel, stdlib ]},
 
   {mod, { erlproxy_app, []}},
 
