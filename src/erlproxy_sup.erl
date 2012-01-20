@@ -41,6 +41,9 @@ init([]) ->
     {packet, raw},
     {ip, BindAddress},
     {reuseaddr, true},
+    %{nodelay, true},
+    {backlog, 4096},
+    %{recbuf, default},
     {active, false}
   ],
 

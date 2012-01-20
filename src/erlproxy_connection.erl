@@ -88,7 +88,8 @@ connect_to_remote(RecvSocket) ->
   RemotePort = proplists:get_value(port, SelectedHost),
 
   inet:setopts(RecvSocket,[{active, true}]),
-  case gen_tcp:connect(RemoteHost, RemotePort, [binary, {active, true}, {packet, 0}, {nodelay, true} ]) of
+  %case gen_tcp:connect(RemoteHost, RemotePort, [binary, {active, true}, {packet, 0}, {nodelay, true} ]) of
+  case gen_tcp:connect(RemoteHost, RemotePort, [binary, {active, true}, {packet, 0} ]) of
     {ok, ProxySock} ->
       send_receive_data(RecvSocket, ProxySock);
     {error, Reason} ->
