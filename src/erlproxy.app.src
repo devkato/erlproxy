@@ -6,8 +6,7 @@
   {modules, [
     erlproxy_app,
     erlproxy_sup,
-    erlproxy_connection,
-    erlproxy_monitor
+    erlproxy_connection
   ]},
 
   {registered, [

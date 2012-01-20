@@ -9,66 +9,80 @@
 -author("devkato").
 -vsn("0.0.1").
 
--export([start_link/2, init/2]).
+-export([start_link/4, init/4]).
 
 -include("include/dev.hrl").
 
+-record(proxy_options, {
+    backend_servers,
+    backends_socket_options,
+    policy
+  }).
 
 %% ----------------------------------------------------------------------
-%% supervisorにプロセスをヒモ付て起動
+%% spawn new process within supervisor tree.
 %%
-%% ListenSocket : サーバーが開放しているソケット
-%% ListenPort : サーバーが開放しているポート
+%% ListenSocket : the socket of this server waiting for clients.
+%% ListenPort : the port listening.
 %% ----------------------------------------------------------------------
-start_link(ListenSocket, ListenPort) ->
-  Pid = proc_lib:spawn_link(?MODULE, init, [ListenSocket, ListenPort]),
+start_link(ListenSocket, ListenPort, BackendOptions, BackendServers) ->
+  Pid = proc_lib:spawn_link(?MODULE, init, [ListenSocket, ListenPort, BackendOptions, BackendServers]),
   {ok, Pid}.
 
 
 %% ----------------------------------------------------------------------
-%% 初期化処理後、acceptループを開始
+%% initialize this process and start accept loop.
 %%
-%% ListenSocket : サーバーが開放しているソケット
-%% ListenPort : サーバーが開放しているポート
+%% ListenSocket : the socket of this server waiting for clients.
+%% ListenPort : the port listening.
 %% ----------------------------------------------------------------------
-init(ListenSocket, ListenPort) ->
-  ?APP_DEBUG("init called.~n", []),
-  accept(ListenSocket, ListenPort).
+init(ListenSocket, ListenPort, BackendOptions, BackendServers) ->
+  ?APP_DEBUG("init called.", []),
+  
+  % expand, and add all configurations to ProxyOptions
+  ProxyOptions = #proxy_options {
+    backend_servers = BackendServers,
+    backends_socket_options = proplists:get_value(socket_options, BackendOptions),
+    policy = proplists:get_value(policy, BackendOptions)
+  },
+
+  %?APP_DEBUG("~p", [ProxyOptions]),
+
+  accept(ListenSocket, ListenPort, ProxyOptions).
 
 
 %% ----------------------------------------------------------------------
-%% TCP接続要求を待つ。接続してきた時点でaccept以下が処理される。
-%% それまではgen_tcp:acceptで待機状態になる。
+%% wait clients to connect this server.
 %%
-%% ListenSocket : サーバーが開放しているソケット
-%% ListenPort : サーバーが開放しているポート
+%% ListenSocket : the socket of this server waiting for clients.
+%% ListenPort : the port listening.
 %% ----------------------------------------------------------------------
-accept(ListenSocket, ListenPort) ->
-  ?APP_DEBUG("accept called.~n", []),
+accept(ListenSocket, ListenPort, ProxyOptions) ->
+  ?APP_DEBUG("accept called.", []),
   case gen_tcp:accept(ListenSocket) of
     {ok, RecvSocket} ->
       Proxy = spawn(fun() ->
-        start_controlling_process(RecvSocket)
+        start_controlling_process(RecvSocket, ProxyOptions)
       end),
       gen_tcp:controlling_process(RecvSocket, Proxy),
       Proxy ! set,
-      accept(ListenSocket, ListenPort);
+      accept(ListenSocket, ListenPort, ProxyOptions);
     {error, Error} ->
       ?APP_ERROR("~p~n", [Error]),
-      accept(ListenSocket, ListenPort)
+      accept(ListenSocket, ListenPort, ProxyOptions)
   end.
 
 
 %% ----------------------------------------------------------------------
-%% acceptした後で渡されたデータを実際に処理するプロセスが実行する関数。
+%% get controll with the socket.
 %% 
-%% RecvSocket : 元々接続してきたクライアントとの接続
+%% RecvSocket : the connection with the original client.
 %% ----------------------------------------------------------------------
-start_controlling_process(RecvSocket) ->
+start_controlling_process(RecvSocket, ProxyOptions) ->
   receive
     set ->
-      connect_to_remote(RecvSocket),
-      ?APP_DEBUG("end start_controlling_process~n", [])
+      connect_to_remote(RecvSocket, ProxyOptions),
+      ?APP_DEBUG("end start_controlling_process", [])
   after 60000 ->
     ?APP_ERROR("message timeout, close socket.", []),
     gen_tcp:close(RecvSocket)
@@ -76,49 +90,40 @@ start_controlling_process(RecvSocket) ->
 
 
 %% ----------------------------------------------------------------------
-%% プロキシ先との接続を確立し、データのやり取りのループ処理を開始。
+%% establish connection to selected remote host, starting recv/send loop.
 %%
-%% RecvSocket : 元々接続してきたクライアントとの接続
+%% RecvSocket : the connection with the original client.
 %% ----------------------------------------------------------------------
-connect_to_remote(RecvSocket) ->
-  {ok, SelectedHost} = erlproxy_monitor:select_host(),
-  ?APP_DEBUG("selected host => ~p~n", [proplists:get_value(name, SelectedHost)]),
-
-  RemoteHost = proplists:get_value(host, SelectedHost),
-  RemotePort = proplists:get_value(port, SelectedHost),
-  RemoteTimeout = case proplists:get_value(timeout, SelectedHost) of
-    undefined ->
-      10000;
-    Timeout ->
-      Timeout
-  end,
-
-  ?APP_INFO("RemoteTimeout -> ~p~n", [RemoteTimeout]),
+connect_to_remote(RecvSocket, ProxyOptions) ->
+  {ok, _HostName, RemoteHost, RemotePort, RemoteTimeout} = select_backend(ProxyOptions),
 
   inet:setopts(RecvSocket,[{active, true}]),
-  case gen_tcp:connect(RemoteHost, RemotePort, [binary, {active, true}, {packet, 0} ], RemoteTimeout) of
+
+  case gen_tcp:connect(
+      RemoteHost,
+      RemotePort,
+      ProxyOptions#proxy_options.backends_socket_options,
+      RemoteTimeout) of
     {ok, ProxySock} ->
       send_receive_data(RecvSocket, ProxySock);
     {error, Reason} ->
       ?APP_ERROR("~p~n", [Reason])
   end,
-  ?APP_DEBUG("end handle_data~n", []).
+  ?APP_DEBUG("end handle_data", []).
 
 
 %% ----------------------------------------------------------------------
-%% 各ソケットからデータを取得して、もう片方にデータを受け渡す。
+%% receive, send packets on receiving a message.
 %%
-%% RecvSocket : 元々接続してきたクライアントとの接続
-%% ProxySocket : プロキシ先との接続
+%% RecvSocket : the connection with the original client.
+%% ProxySocket : the connection with selected remote host.
 %% ----------------------------------------------------------------------
 send_receive_data(RecvSocket, ProxySocket) ->
   receive
     {tcp, RecvSocket, Data} ->
-      %?APP_DEBUG("recv -> proxy : ~p~n", [Data]),
       gen_tcp:send(ProxySocket, Data),
       send_receive_data(RecvSocket, ProxySocket);
     {tcp, ProxySocket, Data} ->
-      %?APP_DEBUG("proxy -> recv : ~p~n", [Data]),
       gen_tcp:send(RecvSocket, Data),
       send_receive_data(RecvSocket, ProxySocket);
     {tcp_closed, RecvSocket} ->
@@ -133,5 +138,34 @@ send_receive_data(RecvSocket, ProxySocket) ->
     gep_tcp:close(ProxySocket),
     ok
   end.
+
+%% ----------------------------------------------------------------------
+%% select a backend server with specified policy.
+%% ----------------------------------------------------------------------
+select_backend(ProxyOptions) ->
+  ?APP_DEBUG("policy -> ~p", [ProxyOptions#proxy_options.policy]),
+
+  [
+    {name, HostName},
+    {host, RemoteHost},
+    {port, RemotePort},
+    {weight, _Weight},
+    {timeout, RemoteTimeout}
+  ] = case ProxyOptions#proxy_options.policy of
+    random ->
+      % @TODO now() is slow
+      random:seed(now()),
+      lists:nth(random:uniform(length(ProxyOptions#proxy_options.backend_servers)), ProxyOptions#proxy_options.backend_servers);
+    _ ->
+      ?APP_ERROR("unknown policy", []),
+      [{name, ""}, {host, ""}, {port, 0}, {weight, 0}, {timeout, 0}]
+  end,
+
+  ?APP_DEBUG("HostName -> ~p", [HostName]),
+  ?APP_DEBUG("RemoteHost -> ~p", [RemoteHost]),
+  ?APP_DEBUG("RemotePort -> ~p", [RemotePort]),
+  ?APP_DEBUG("RemoteTimeout -> ~p", [RemoteTimeout]),
+
+  {ok, HostName, RemoteHost, RemotePort, RemoteTimeout}.
 
 

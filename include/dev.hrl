@@ -5,7 +5,7 @@
 %% Debug functions
 %% ======================================================================
 
-%-define(app_debug, false).
+-define(app_debug, true).
 -define(app_info, true).
 -define(app_warn, true).
 -define(app_error, true).

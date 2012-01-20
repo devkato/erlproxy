@@ -32,36 +32,33 @@ start_link() ->
 init([]) ->
   {ok, InitOptions} = application:get_env(erlproxy, server_info),
 
+  % Proxy Server Configurations
   ListenPort = proplists:get_value(port, InitOptions),
-  BindAddress = proplists:get_value(bind, InitOptions),
   MaxConnections = proplists:get_value(max_connections, InitOptions),
+  SocketOptions = proplists:get_value(socket_options, InitOptions),
 
-  SocketOptions = [
-    binary,
-    {packet, raw},
-    {ip, BindAddress},
-    {reuseaddr, true},
-    %{nodelay, true},
-    {backlog, 4096},
-    {keepalive, true},
-    %{recbuf, default},
-    {active, false}
-  ],
+  % Load Backends Configurations
+  BackendOptions = proplists:get_value(backends, InitOptions),
 
-  MonitorSpec = {erlproxy_monitor,
-    {erlproxy_monitor, start_link, []},
-    permanent, 5000, worker, [erlproxy_monitor]
-  },
+  % Backend Servers
+  BackendServers = proplists:get_value(servers, InitOptions),
 
   case gen_tcp:listen(ListenPort, SocketOptions) of
     {ok, ListenSocket} ->
+      ConnectionInitOptions = [
+        ListenSocket,
+        ListenPort,
+        BackendOptions,
+        BackendServers
+      ],
+
       Connections = [
         {{erlproxy_connection, N},
-          {erlproxy_connection, start_link, [ListenSocket, ListenPort]},
+          {erlproxy_connection, start_link, ConnectionInitOptions},
           permanent, brutal_kill, worker, [erlproxy_connection]
         } || N <- lists:seq(1, MaxConnections) ],
 
-      {ok, { {one_for_one, 5, 10}, lists:flatten([Connections, MonitorSpec])} };
+      {ok, { {one_for_one, 5, 10}, lists:flatten(Connections)} };
     {error, Reason} -> 
       io:format("~p~n", [Reason]),
       {error, Reason}
