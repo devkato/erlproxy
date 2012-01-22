@@ -1,7 +1,7 @@
 %%%-------------------------------------------------------------------
 %%% @author devkato
 %%% @copyright (C) 2012, devkato
-%%% @doc
+%%% @doc Connection module to wait server socket accept new connection.
 %%%
 %%% @end
 %%%-------------------------------------------------------------------
@@ -14,27 +14,44 @@
 -include("include/dev.hrl").
 
 -record(proxy_options, {
-    backend_servers,
-    backends_socket_options,
-    policy
-  }).
+  backend_servers::list(),
+  backends_socket_options::list(),
+  policy::atom()
+}).
+
 
 %% ----------------------------------------------------------------------
-%% spawn new process within supervisor tree.
+%% @spec start_link(ListenSocket, ListenPort, BackendOptions, BackendServers) -> Result
+%%  ListenSocket = integer()
+%%  ListenPort = integer()
+%%  BackendOptions = list(tuple())
+%%  BackendServers = [[{ Key::atom(), Value::string()|integer() }]]
+%%  Result = {ok, pid()}
 %%
-%% ListenSocket : the socket of this server waiting for clients.
-%% ListenPort : the port listening.
+%% @doc spawn new process within supervisor tree.
+%% @end
 %% ----------------------------------------------------------------------
+-spec start_link(
+  ListenSocket::integer(),
+  ListenPort::integer(),
+  BackendOptions::list(tuple()),
+  BackendServers::[[{ Key::atom(), Value::string()|integer() }]]
+) -> {ok, pid()}.
 start_link(ListenSocket, ListenPort, BackendOptions, BackendServers) ->
   Pid = proc_lib:spawn_link(?MODULE, init, [ListenSocket, ListenPort, BackendOptions, BackendServers]),
   {ok, Pid}.
 
 
 %% ----------------------------------------------------------------------
-%% initialize this process and start accept loop.
+%% @spec init(ListenSocket, ListenPort, BackendOptions, BackendServers) -> Result
+%%  ListenSocket = integer()
+%%  ListenPort = integer()
+%%  BackendOptions = list(tuple())
+%%  BackendServers = [[{ Key::atom(), Value::string()|integer() }]]
+%%  Result = ok
 %%
-%% ListenSocket : the socket of this server waiting for clients.
-%% ListenPort : the port listening.
+%% @doc initialize this process and start accept loop.
+%% @end
 %% ----------------------------------------------------------------------
 init(ListenSocket, ListenPort, BackendOptions, BackendServers) ->
   ?APP_DEBUG("init called.", []),
@@ -52,11 +69,16 @@ init(ListenSocket, ListenPort, BackendOptions, BackendServers) ->
 
 
 %% ----------------------------------------------------------------------
-%% wait clients to connect this server.
+%% @spec accept(ListenSocket, ListenPort, ProxyOptions) -> Result
+%%  ListenSocket = integer()
+%%  ListenPort = integer()
+%%  ProxyOptions = list()
+%%  Result = ok
 %%
-%% ListenSocket : the socket of this server waiting for clients.
-%% ListenPort : the port listening.
+%% @doc wait clients to connect this server.
+%% @end
 %% ----------------------------------------------------------------------
+-spec accept(ListenSocket::integer(), ListenPort::integer(), ProxyOptions::list()) -> atom().
 accept(ListenSocket, ListenPort, ProxyOptions) ->
   ?APP_DEBUG("accept called.", []),
   case gen_tcp:accept(ListenSocket) of
@@ -70,14 +92,21 @@ accept(ListenSocket, ListenPort, ProxyOptions) ->
     {error, Error} ->
       ?APP_ERROR("~p~n", [Error]),
       accept(ListenSocket, ListenPort, ProxyOptions)
-  end.
+  end,
+
+  ok.
 
 
 %% ----------------------------------------------------------------------
-%% get controll with the socket.
-%% 
-%% RecvSocket : the connection with the original client.
+%% @spec start_controlling_process(RecvSocket, ProxyOptions) -> Result
+%%  RecvSocket = integer()
+%%  ProxyOptions = list()
+%%  Result = ok
+%%
+%% @doc get controll with the socket.
+%% @end
 %% ----------------------------------------------------------------------
+-spec start_controlling_process(RecvSocket::integer(), ProxyOptions::list()) -> ok.
 start_controlling_process(RecvSocket, ProxyOptions) ->
   receive
     set ->
@@ -86,13 +115,19 @@ start_controlling_process(RecvSocket, ProxyOptions) ->
   after 60000 ->
     ?APP_ERROR("message timeout, close socket.", []),
     gen_tcp:close(RecvSocket)
-  end.
+  end,
+
+  ok.
 
 
 %% ----------------------------------------------------------------------
-%% establish connection to selected remote host, starting recv/send loop.
+%% @spec connect_to_remote(RecvSocket, ProxyOptions) -> ok
+%%  RecvSocket = integer()
+%%  ProxyOptions = list()
+%%  Result = ok
 %%
-%% RecvSocket : the connection with the original client.
+%% @doc establish connection to selected remote host, starting recv/send loop.
+%% @end
 %% ----------------------------------------------------------------------
 connect_to_remote(RecvSocket, ProxyOptions) ->
   {ok, _HostName, RemoteHost, RemotePort, RemoteTimeout} = select_backend(ProxyOptions),
@@ -109,14 +144,19 @@ connect_to_remote(RecvSocket, ProxyOptions) ->
     {error, Reason} ->
       ?APP_ERROR("~p~n", [Reason])
   end,
-  ?APP_DEBUG("end handle_data", []).
+  ?APP_DEBUG("end handle_data", []),
+
+  ok.
 
 
 %% ----------------------------------------------------------------------
-%% receive, send packets on receiving a message.
+%% @spec send_receive_data(RecvSocket, ProxySocket) -> Result
+%%  RecvSocket = integer()
+%%  ProxySocket = integer()
+%%  Result = ok
 %%
-%% RecvSocket : the connection with the original client.
-%% ProxySocket : the connection with selected remote host.
+%% @doc receive, send packets on receiving a message.
+%% @end
 %% ----------------------------------------------------------------------
 send_receive_data(RecvSocket, ProxySocket) ->
   receive
@@ -140,8 +180,16 @@ send_receive_data(RecvSocket, ProxySocket) ->
   end.
 
 %% ----------------------------------------------------------------------
-%% select a backend server with specified policy.
+%% @doc select a backend server with specified policy.
+%% @end
 %% ----------------------------------------------------------------------
+-spec select_backend(ProxyOptions::proxyoptions) -> {
+    atom(),
+    string(),
+    string(),
+    integer(),
+    integer()
+  }.
 select_backend(ProxyOptions) ->
   ?APP_DEBUG("policy -> ~p", [ProxyOptions#proxy_options.policy]),
 
