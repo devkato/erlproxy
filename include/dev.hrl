@@ -5,11 +5,6 @@
 %% Debug functions
 %% ======================================================================
 
--define(app_debug, true).
--define(app_info, true).
--define(app_warn, true).
--define(app_error, true).
-
 -ifdef(app_debug).
 -define(APP_DEBUG(Str, Args), .erlang:apply(io, format, [.lists:concat([
   "[DEBUG] ", pid_to_list(self()), " ", ?MODULE, "/", ?LINE, " : ", Str, "~n"]), Args])).

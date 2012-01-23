@@ -9,4 +9,4 @@ Simple Load Balancer for Layer 4 by Erlang.
 ## To Start
 
 ./rebar compile
-erl -boot start_sasl -pa ebin -config erlproxy
+erl -config erlproxy

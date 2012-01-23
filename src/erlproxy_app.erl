@@ -28,7 +28,7 @@
 %% @doc start application.
 %% @end
 %% ----------------------------------------------------------------------
-start(StartType, StartArgs) ->
+start(_StartType, _StartArgs) ->
     erlproxy_sup:start_link().
 
 %% ----------------------------------------------------------------------
@@ -39,5 +39,5 @@ start(StartType, StartArgs) ->
 %% @doc stop application.
 %% @end
 %% ----------------------------------------------------------------------
-stop(State) ->
+stop(_State) ->
     ok.
