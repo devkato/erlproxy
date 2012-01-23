@@ -23,11 +23,12 @@
 
 
 %% ----------------------------------------------------------------------
-%% @spec start_link(ListenSocket, ListenPort, BackendOptions, BackendServers) -> Result
+%% @spec start_link(ListenSocket, ListenPort, BackendOptions, BackendServers, RRT) -> Result
 %%  ListenSocket = integer()
 %%  ListenPort = integer()
 %%  BackendOptions = list(tuple())
 %%  BackendServers = [[{ Key::atom(), Value::string()|integer() }]]
+%%  RRT = ets:tid()
 %%  Result = {ok, pid()}
 %%
 %% @doc spawn new process within supervisor tree.
@@ -46,12 +47,13 @@ start_link(ListenSocket, ListenPort, BackendOptions, BackendServers, RRT) ->
 
 
 %% ----------------------------------------------------------------------
-%% @spec init(ListenSocket, ListenPort, BackendOptions, BackendServers) -> Result
+%% @spec init(ListenSocket, ListenPort, BackendOptions, BackendServers, RRT) -> Result
 %%  ListenSocket = integer()
 %%  ListenPort = integer()
 %%  BackendOptions = list(tuple())
 %%  BackendServers = [[{ Key::atom(), Value::string()|integer() }]]
-%%  Result = ok
+%%  RRT = ets:tid()
+%%  Result = atom()
 %%
 %% @doc initialize this process and start accept loop.
 %% @end
@@ -67,8 +69,6 @@ init(ListenSocket, ListenPort, BackendOptions, BackendServers, RRT) ->
     policy                  = proplists:get_value(policy, BackendOptions),
     table                   = RRT
   },
-
-  %?APP_DEBUG("~p", [ProxyOptions]),
 
   accept(ListenSocket, ListenPort, ProxyOptions).
 
@@ -106,7 +106,7 @@ accept(ListenSocket, ListenPort, ProxyOptions) ->
 %% @spec start_controlling_process(RecvSocket, ProxyOptions) -> Result
 %%  RecvSocket = integer()
 %%  ProxyOptions = list()
-%%  Result = ok
+%%  Result = atom()
 %%
 %% @doc get controll with the socket.
 %% @end
@@ -129,7 +129,7 @@ start_controlling_process(RecvSocket, ProxyOptions) ->
 %% @spec connect_to_remote(RecvSocket, ProxyOptions) -> ok
 %%  RecvSocket = integer()
 %%  ProxyOptions = list()
-%%  Result = ok
+%%  Result = atom()
 %%
 %% @doc establish connection to selected remote host, starting recv/send loop.
 %% @end
@@ -158,7 +158,7 @@ connect_to_remote(RecvSocket, ProxyOptions) ->
 %% @spec send_receive_data(RecvSocket, ProxySocket) -> Result
 %%  RecvSocket = integer()
 %%  ProxySocket = integer()
-%%  Result = ok
+%%  Result = atom()
 %%
 %% @doc receive, send packets on receiving a message.
 %% @end
@@ -185,6 +185,15 @@ send_receive_data(RecvSocket, ProxySocket) ->
   end.
 
 %% ----------------------------------------------------------------------
+%% @spec select_backend(ProxyOptions) -> Result
+%%  ProxyOptions = list()
+%%  Result = {
+%%    atom(),
+%%    string(),
+%%    integer(),
+%%    integer()
+%%  }
+%%
 %% @doc select a backend server with specified policy.
 %% @end
 %% ----------------------------------------------------------------------

@@ -31,7 +31,7 @@
 %% @end
 %% ----------------------------------------------------------------------
 start_link() ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+  supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 %% ===================================================================
 %% Supervisor callbacks
@@ -40,11 +40,12 @@ start_link() ->
 %% ----------------------------------------------------------------------
 %% @spec init(Options) -> Result
 %%  Options = list()
+%%  Result = atom()
 %%
-%% @doc 
+%% @doc initialize supervisor.
 %% @end
 %% ----------------------------------------------------------------------
--spec init(Options::list()) -> ok.
+-spec init(Options::list()) -> atom().
 init([]) ->
   {ok, InitOptions} = application:get_env(erlproxy, server_info),
 

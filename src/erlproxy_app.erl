@@ -18,8 +18,26 @@
 %% Application callbacks
 %% ===================================================================
 
-start(_StartType, _StartArgs) ->
+%% ----------------------------------------------------------------------
+%% @spec start(StartType, StartArgs) -> Result
+%%  StartType = atom()
+%%  StartArgs = restart_type()
+%%  Result = ok | {error, Reason}
+%%  Reason = term()
+%%
+%% @doc start application.
+%% @end
+%% ----------------------------------------------------------------------
+start(StartType, StartArgs) ->
     erlproxy_sup:start_link().
 
-stop(_State) ->
+%% ----------------------------------------------------------------------
+%% @spec stop(State) -> Result
+%%  State = atom()
+%%  Result = atom()
+%%
+%% @doc stop application.
+%% @end
+%% ----------------------------------------------------------------------
+stop(State) ->
     ok.
