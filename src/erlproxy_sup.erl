@@ -81,7 +81,7 @@ init([]) ->
           permanent, brutal_kill, worker, [erlproxy_connection]
         } || N <- lists:seq(1, PoolConnections) ],
 
-      {ok, { {one_for_one, 5, 10}, lists:flatten(Connections)} };
+      {ok, { {one_for_one, 10, 60}, lists:flatten(Connections)} };
     {error, Reason} -> 
       io:format("~p~n", [Reason]),
       {error, Reason}
