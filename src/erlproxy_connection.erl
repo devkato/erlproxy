@@ -184,6 +184,7 @@ send_receive_data(RecvSocket, ProxySocket) ->
     ok
   end.
 
+
 %% ----------------------------------------------------------------------
 %% @spec select_backend(ProxyOptions) -> Result
 %%  ProxyOptions = list()
@@ -224,7 +225,7 @@ select_backend(ProxyOptions) ->
 
       lists:nth(NextServer, ProxyOptions#proxy_options.backend_servers);
     random ->
-      % @TODO now() is slow
+      % @TODO now() is too slow
       random:seed(now()),
       lists:nth(random:uniform(length(ProxyOptions#proxy_options.backend_servers)), ProxyOptions#proxy_options.backend_servers);
     _ ->
