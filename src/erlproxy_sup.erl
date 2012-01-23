@@ -18,6 +18,8 @@
 %% Supervisor callbacks
 -export([init/1]).
 
+-include("include/dev.hrl").
+
 %% ===================================================================
 %% API functions
 %% ===================================================================
@@ -48,7 +50,7 @@ init([]) ->
 
   % Proxy Server Configurations
   ListenPort = proplists:get_value(port, InitOptions),
-  MaxConnections = proplists:get_value(max_connections, InitOptions),
+  PoolConnections = proplists:get_value(pool_connections, InitOptions),
   SocketOptions = proplists:get_value(socket_options, InitOptions),
 
   % Load Backends Configurations
@@ -57,20 +59,27 @@ init([]) ->
   % Backend Servers
   BackendServers = proplists:get_value(servers, InitOptions),
 
+  % backends list for round-robin policy
+  RoundRobinTable = ets:new(roundrobin, [set, public]),
+  ets:insert(RoundRobinTable, {current_server, 0}),
+
   case gen_tcp:listen(ListenPort, SocketOptions) of
     {ok, ListenSocket} ->
       ConnectionInitOptions = [
         ListenSocket,
         ListenPort,
         BackendOptions,
-        BackendServers
+        BackendServers,
+        RoundRobinTable
       ],
+
+      ?APP_INFO("Create ~p connection pool ... ", [PoolConnections]),
 
       Connections = [
         {{erlproxy_connection, N},
           {erlproxy_connection, start_link, ConnectionInitOptions},
           permanent, brutal_kill, worker, [erlproxy_connection]
-        } || N <- lists:seq(1, MaxConnections) ],
+        } || N <- lists:seq(1, PoolConnections) ],
 
       {ok, { {one_for_one, 5, 10}, lists:flatten(Connections)} };
     {error, Reason} -> 

@@ -9,14 +9,16 @@
 -author("devkato").
 -vsn("0.0.1").
 
--export([start_link/4, init/4]).
+-export([start_link/5, init/5]).
 
 -include("include/dev.hrl").
 
 -record(proxy_options, {
   backend_servers::list(),
+  backend_server_num::integer(),
   backends_socket_options::list(),
-  policy::atom()
+  policy::atom(),
+  table::ets:tid()
 }).
 
 
@@ -35,10 +37,11 @@
   ListenSocket::integer(),
   ListenPort::integer(),
   BackendOptions::list(tuple()),
-  BackendServers::[[{ Key::atom(), Value::string()|integer() }]]
+  BackendServers::[[{ Key::atom(), Value::string()|integer() }]],
+  RRT::ets:tid()
 ) -> {ok, pid()}.
-start_link(ListenSocket, ListenPort, BackendOptions, BackendServers) ->
-  Pid = proc_lib:spawn_link(?MODULE, init, [ListenSocket, ListenPort, BackendOptions, BackendServers]),
+start_link(ListenSocket, ListenPort, BackendOptions, BackendServers, RRT) ->
+  Pid = proc_lib:spawn_link(?MODULE, init, [ListenSocket, ListenPort, BackendOptions, BackendServers, RRT]),
   {ok, Pid}.
 
 
@@ -53,14 +56,16 @@ start_link(ListenSocket, ListenPort, BackendOptions, BackendServers) ->
 %% @doc initialize this process and start accept loop.
 %% @end
 %% ----------------------------------------------------------------------
-init(ListenSocket, ListenPort, BackendOptions, BackendServers) ->
+init(ListenSocket, ListenPort, BackendOptions, BackendServers, RRT) ->
   ?APP_DEBUG("init called.", []),
   
   % expand, and add all configurations to ProxyOptions
   ProxyOptions = #proxy_options {
-    backend_servers = BackendServers,
+    backend_servers         = BackendServers,
+    backend_server_num      = length(BackendServers),
     backends_socket_options = proplists:get_value(socket_options, BackendOptions),
-    policy = proplists:get_value(policy, BackendOptions)
+    policy                  = proplists:get_value(policy, BackendOptions),
+    table                   = RRT
   },
 
   %?APP_DEBUG("~p", [ProxyOptions]),
@@ -200,6 +205,15 @@ select_backend(ProxyOptions) ->
     {weight, _Weight},
     {timeout, RemoteTimeout}
   ] = case ProxyOptions#proxy_options.policy of
+    roundrobin ->
+      NextServer = ets:update_counter(
+        ProxyOptions#proxy_options.table,
+        current_server,
+        {2, 1, ProxyOptions#proxy_options.backend_server_num, 1}
+      ),
+      ?APP_DEBUG("NextServer -> ~p", [NextServer]),
+
+      lists:nth(NextServer, ProxyOptions#proxy_options.backend_servers);
     random ->
       % @TODO now() is slow
       random:seed(now()),
