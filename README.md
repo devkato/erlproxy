@@ -4,7 +4,7 @@ Simple Load Balancer for Layer 4 by Erlang.
 
 * health check of backends and fail-over automatically.
 * multiple algorithm for choosing a backend server.
-* roundrobin, by weight, response time, number of requests served, etc...
+* by weight, response time, number of requests served, etc...
 
 ## To Start
 
